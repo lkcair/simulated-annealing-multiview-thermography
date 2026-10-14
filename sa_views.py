@@ -89,8 +89,12 @@ def fit_bagged(P, y, seed, schedule, n_bags=5):
     return np.mean([fit_annealed(P[i], y[i], seed, *schedule) for i in draws], axis=0)
 
 
-def fit_pruned(P, y, seed, schedule, top=3):
-    keep = np.argsort([-f1_at(y, P[:, j]) for j in range(P.shape[1])], kind="stable")[:top]
+def top_views(P, y, top=2):
+    return np.argsort([-f1_at(y, P[:, j]) for j in range(P.shape[1])], kind="stable")[:top]
+
+
+def fit_pruned(P, y, seed, schedule):
+    keep = top_views(P, y)
     w = np.zeros(P.shape[1])
     w[keep] = fit_annealed(P[:, keep], y, seed, *schedule)
     return w
@@ -129,9 +133,10 @@ def metrics(y, score, pred):
             "recall": tp / (tp + fn), "tn": tn, "fp": fp, "fn": fn, "tp": tp, "total": len(y)}
 
 
-def fold_record(fold, tuned, pick, thr, cols, w):
+def fold_record(fold, tuned, pick, thr, cols, w, pruned):
     return {"fold": fold, "tuned schedule": f"t0={tuned[0]}, cooling={tuned[1]}", "nested pick": pick,
-            "threshold": thr, **{f"w {c}": round(x, 4) for c, x in zip(cols, w)}}
+            "threshold": thr, "pruned views": " + ".join(cols[j] for j in pruned),
+            **{f"w {c}": round(x, 4) for c, x in zip(cols, w)}}
 
 
 def run_source(data, seeds):
@@ -158,7 +163,7 @@ def run_source(data, seeds):
             scores[THRESHOLDED][mask] = Pt @ weights["SA base"]
             thr_pred[mask] = scores[THRESHOLDED][mask] >= thr
             if seed == seeds[0]:
-                chosen.append(fold_record(k, tuned, pick, thr, cols, weights["SA base"]))
+                chosen.append(fold_record(k, tuned, pick, thr, cols, weights["SA base"], top_views(Pv, yv)))
         for name, s in scores.items():
             pred = thr_pred if name == THRESHOLDED else (s >= 0.5).astype(int)
             per_seed.setdefault(name, []).append(metrics(y_test, s, pred))
