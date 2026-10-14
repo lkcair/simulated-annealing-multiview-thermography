@@ -9,10 +9,15 @@ from sklearn.model_selection import StratifiedKFold
 SEED = 42
 VIEWS = ["Frontal", "Left45", "Right45", "Left90", "Right90"]
 FOLDS = ["F0", "F1", "F2", "F3", "F4"]
-SOURCES = {"ResNet18 raw": "raw_por_fold resnet18.xlsx", "ResNet18 seg": "seg_por_fold resnet18.xlsx",
-           "ResNet18 truncada raw": "raw_por_fold resnet truncada.xlsx",
-           "ResNet18 truncada seg": "seg_por_fold resnet truncada.xlsx",
-           "VGG16 raw": "raw_por_fold vgg16.xlsx", "VGG16 seg": "seg_por_fold vgg16.xlsx"}
+THREE = ["Frontal", "Left", "Right"]
+TWO = ["Frontal", "Laterals"]
+FILES = {"ResNet18 raw": "raw_por_fold resnet18.xlsx", "ResNet18 seg": "seg_por_fold resnet18.xlsx",
+         "ResNet18 truncada raw": "raw_por_fold resnet truncada.xlsx",
+         "ResNet18 truncada seg": "seg_por_fold resnet truncada.xlsx",
+         "VGG16 raw": "raw_por_fold vgg16.xlsx", "VGG16 seg": "seg_por_fold vgg16.xlsx"}
+SOURCES = {**{name: (f, VIEWS) for name, f in FILES.items()},
+           **{f"ResNet18 truncada {kind} {len(cols)}attr": (FILES[f"ResNet18 truncada {kind}"], cols)
+              for kind in ("raw", "seg") for cols in (THREE, TWO)}}
 GRID = [(t0, cooling) for t0 in (0.1, 0.01, 0.001) for cooling in (0.90, 0.95)]
 BASE = (0.1, 0.95)
 INNER = 5
@@ -23,8 +28,9 @@ COLUMNS = ["acc", "f1", "roc_auc", "precision", "recall", "tn", "fp", "fn", "tp"
 
 
 def read(data_dir, name, split, prefix=""):
-    t = pd.read_excel(Path(data_dir) / SOURCES[name], sheet_name=split)
-    cols = {f"{v}_Prob": f"{prefix}{v}" for v in VIEWS}
+    path, inputs = SOURCES[name]
+    t = pd.read_excel(Path(data_dir) / path, sheet_name=split)
+    cols = {f"{v}_Prob": f"{prefix}{v}" for v in inputs}
     return t[["ID", "Fold", "True_Label", *cols]].rename(columns=cols)
 
 
@@ -33,7 +39,7 @@ def load(data_dir, name):
         return {s: read(data_dir, name, s) for s in ("val", "test")}
     out = {}
     for s in ("val", "test"):
-        parts = [read(data_dir, n, s, f"{n} | ") for n in SOURCES]
+        parts = [read(data_dir, n, s, f"{n} | ") for n in FILES]
         merged = parts[0]
         for p in parts[1:]:
             merged = merged.merge(p, on=["ID", "Fold", "True_Label"])
