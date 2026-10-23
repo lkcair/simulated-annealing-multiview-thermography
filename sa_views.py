@@ -70,7 +70,7 @@ def fit_annealed(P, y, seed=SEED, t0=0.1, cooling=0.95, t_stop=1e-4, min_iters=2
     cur_f = f1_at(y, P @ cur)
     best, best_f, t = cur.copy(), cur_f, t0
     while t > t_stop:
-        total, it, avgs, diff = cur_f, 0, [], 1.0
+        total, it, avgs, diff = 0.0, 0, [], 1.0
         while it < min_iters or diff > epsilon:
             it += 1
             cand = move(cur)
