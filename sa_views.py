@@ -104,7 +104,7 @@ def anneal(P, y, seed, cut, t0=0.1, cooling=0.95, t_stop=1e-4, min_iters=200, wi
     return states[np.argmin(((states - center) ** 2).sum(axis=1))]
 
 
-def fit_final(P, y, seed, cut):
+def fit_shrinkage(P, y, seed, cut):
     n = P.shape[1]
     score = {lam: [] for lam in LAMBDAS}
     held = {lam: np.zeros(len(y)) for lam in LAMBDAS}
@@ -133,18 +133,19 @@ def run(data, kind, seed):
     rows, weights = [], []
     for setting, names in SETTINGS.items():
         cols = [f"{c}_Prob" for c in names]
-        scores = {"SA": np.zeros(len(test)), "SA final": np.zeros(len(test))}
-        cuts = {"SA": np.full(len(test), 0.5), "SA final": np.zeros(len(test))}
+        scores = {"SA": np.zeros(len(test)), "SA shrinkage": np.zeros(len(test))}
+        cuts = {"SA": np.full(len(test), 0.5), "SA shrinkage": np.zeros(len(test))}
         for k in FOLDS:
             v, m = val[val.Fold == k], (test.Fold == k).to_numpy()
             P, yv = v[cols].to_numpy(), v.True_Label.to_numpy()
             cut = float(train[train.Fold == k].True_Label.mean())
-            w_final, lam = fit_final(P, yv, seed, cut)
-            cuts["SA final"][m] = cut
-            for method, wm, l in (("SA", fit_annealed(P, yv, seed), np.nan), ("SA final", w_final, lam)):
+            w_shrinkage, lam = fit_shrinkage(P, yv, seed, cut)
+            cuts["SA shrinkage"][m] = cut
+            for method, wm, l in (("SA", fit_annealed(P, yv, seed), np.nan), ("SA shrinkage", w_shrinkage, lam)):
                 scores[method][m] = test.loc[m, cols].to_numpy() @ wm
                 weights += [{"kind": kind, "seed": seed, "setting": setting, "method": method, "fold": k,
-                             "cut": cuts[method][m][0], "lambda": l, "input": c, "weight": float(x)} for c, x in zip(names, wm)]
+                             "cut": cuts[method][m][0], "lambda": l, "input": c, "weight": float(x)}
+                            for c, x in zip(names, wm)]
         for method, s in scores.items():
             rows.append({"kind": kind, "seed": seed, "setting": setting, "method": method,
                          **metrics(y, s, (s >= cuts[method]).astype(int))})
